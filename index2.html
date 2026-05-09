@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<link rel="stylesheet"
+href="https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2107@1.1/Cafe24Ssurround.css">
+<meta charset="UTF-8">
+<title>수박게임</title>
+<style>
+
+body{
+
+  margin:0;
+
+background:
+linear-gradient(
+  to bottom,
+  #7ecbff 0%,
+  #aee2ff 45%,
+  #dff5ff 100%
+);
+
+  text-align:center;
+
+  font-family:'Cafe24Ssurround';
+
+overflow-y:auto;
+min-height:100vh;
+padding-bottom:30px;
+}
+
+/* 제목 */
+
+#title{
+
+  margin-top:10px;
+
+  margin-bottom:10px;
+
+  font-size:35px;
+
+  color:#ffffff;
+
+  text-shadow:
+    0 3px 0 #5bb6f0,
+    0 6px 14px rgba(0,0,0,0.18);
+
+}
+
+/* 상단바 */
+
+#topBar{
+
+  width:400px;
+
+  margin:0 auto 12px auto;
+
+  display:flex;
+
+  justify-content:space-between;
+
+  align-items:center;
+
+  background:
+    rgba(255,255,255,0.72);
+
+  padding:12px 18px;
+
+  border-radius:24px;
+
+  box-shadow:
+    0 4px 10px rgba(0,0,0,0.08);
+
+  backdrop-filter:blur(8px);
+
+}
+
+/* 점수 */
+
+#score{
+
+  font-size:22px;
+
+  color:#3f6f9f;
+
+}
+
+/* 다음 과일 */
+
+#nextFruit{
+
+  display:flex;
+
+  align-items:center;
+
+  gap:12px;
+
+  font-size:22px;
+
+  color:#3f6f9f;
+
+}
+
+/* 다음 과일 원 */
+
+#nextPreview{
+
+  width:40px;
+
+  height:40px;
+
+  border-radius:50%;
+
+  border:3px solid white;
+
+  display:inline-block;
+
+  box-shadow:
+    inset -4px -4px 8px rgba(0,0,0,0.15),
+    0 2px 8px rgba(0,0,0,0.15);
+
+}
+
+/* 캔버스 */
+
+canvas{
+
+  display:block;
+
+  margin:5px auto 0 auto;
+
+background:
+linear-gradient(
+  to bottom,
+  #ffffff 0%,
+  #f4fbff 50%,
+  #edf8ff 100%
+);
+
+  border:none !important;
+
+  outline:none;
+
+  border-radius:3px;
+
+  box-shadow:
+    0 8px 24px rgba(0,0,0,0.12);
+
+}
+
+</style>
+</head>
+
+<body>
+
+<h1 id="title">
+  🍉 하구수박게임 🍉
+</h1>
+
+<div id="topBar">
+
+  <div id="score">
+    점수: 0
+  </div>
+
+  <div id="nextFruit">
+
+    다음 과일:
+
+    <div id="nextPreview"></div>
+
+  </div>
+
+</div>
+
+<canvas id="world"></canvas>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+
+<script>
+
+const {
+  Engine,
+  Render,
+  Runner,
+  Bodies,
+  Composite,
+  Body,
+  Sleeping
+} = Matter;
+
+// 엔진
+const engine = Engine.create({
+  enableSleeping:true
+});
+
+const world = engine.world;
+
+engine.world.gravity.y = 1.5;
+
+engine.positionIterations = 8;
+engine.velocityIterations = 6;
+
+const width = 400;
+const height = 550;
+
+// 점수
+let score = 0;
+
+const scoreDiv = document.getElementById("score");
+
+const nextPreview =
+  document.getElementById("nextPreview");
+
+function addScore(v){
+
+  score += v;
+
+  scoreDiv.innerText = "점수: " + score;
+
+}
+
+// 이펙트 배열
+const effects = [];
+
+// 캔버스
+const canvas = document.getElementById("world");
+
+// 렌더
+const render = Render.create({
+
+  canvas:canvas,
+  engine:engine,
+
+  options:{
+    width:width,
+    height:height,
+    wireframes:false,
+    background:"#eef9ff",
+    showSleeping:false
+  }
+
+});
+
+Render.run(render);
+
+Runner.run(
+  Runner.create(),
+  engine
+);
+
+// 벽
+Composite.add(world,[
+
+  // 바닥
+  Bodies.rectangle(
+    width/2,
+    height + 25,
+    width,
+    50,
+    {
+      isStatic:true,
+      friction:0.8,
+
+      render:{
+        visible:false
+      }
+    }
+  ),
+
+  // 왼쪽 벽
+  Bodies.rectangle(
+    -25,
+    height/2,
+    50,
+    height,
+    {
+      isStatic:true,
+      friction:0.8,
+
+      render:{
+        visible:false
+      }
+    }
+  ),
+
+  // 오른쪽 벽
+  Bodies.rectangle(
+    width + 25,
+    height/2,
+    50,
+    height,
+    {
+      isStatic:true,
+      friction:0.8,
+
+      render:{
+        visible:false
+      }
+    }
+  )
+
+]);
+
+// 과일 단계
+const fruitLevels = [
+
+  { r:12, color:"#ff9999", score:5 },
+  { r:15, color:"#ffcc66", score:10 },
+  { r:20, color:"#99ccff", score:20 },
+  { r:25, color:"#99ff99", score:40 },
+  { r:30, color:"#cc99ff", score:80 },
+
+  { r:48, color:"#ff88aa", score:120 },
+  { r:60, color:"#88ddaa", score:200 },
+  { r:72, color:"#ffaa66", score:300 },
+  { r:84, color:"#66aaff", score:450 },
+
+
+];
+
+
+
+// 랜덤 생성
+function getRandomLevel(){
+
+  const rand = Math.random();
+
+  if(rand < 0.40) return 0;
+  if(rand < 0.67) return 1;
+  if(rand < 0.85) return 2;
+  if(rand < 0.95) return 3;
+
+  return 4;
+}
+
+let nextLevel = getRandomLevel();
+
+updateNextPreview();
+
+function updateNextPreview(){
+
+  const fruit =
+    fruitLevels[nextLevel];
+
+  const size =
+    fruit.r;
+
+  nextPreview.style.width =
+    size + "px";
+
+  nextPreview.style.height =
+    size + "px";
+
+  nextPreview.style.background =
+    fruit.color;
+
+  nextPreview.style.borderRadius =
+    "50%";
+
+  nextPreview.style.display =
+    "inline-block";
+}
+
+
+// 과일 생성
+function createFruit(x,y,level){
+
+  const maxLevel = fruitLevels.length - 1;
+
+  const t = 1 - (level / maxLevel);
+
+  const restitution =
+    0.15 + t * 0.35;
+
+  const density =
+    0.002 - t * 0.0015;
+
+  const frictionAir =
+    0.02 - t * 0.015;
+
+  const fruit = Bodies.circle(
+
+    x,
+    y,
+    fruitLevels[level].r,
+
+    {
+
+      restitution:restitution,
+
+      friction:0.1,
+
+      frictionAir:frictionAir,
+
+      density:density,
+
+      sleepThreshold:60,
+
+      render:{
+        fillStyle:
+          fruitLevels[level].color
+      }
+
+    }
+
+  );
+
+  fruit.level = level;
+
+  return fruit;
+
+}
+
+// 클릭 생성
+let lastDropTime = 0;
+
+const COOLDOWN = 350;
+
+canvas.addEventListener(
+  "mousedown",
+  (e)=>{
+
+    const now = Date.now();
+
+    if(
+      now - lastDropTime
+      < COOLDOWN
+    ) return;
+
+    lastDropTime = now;
+
+    const rect =
+      canvas.getBoundingClientRect();
+
+    const x =
+      e.clientX - rect.left;
+
+  const level = nextLevel;
+
+const fruit =
+  createFruit(
+    x,
+    20,
+    level
+  );
+
+nextLevel = getRandomLevel();
+
+updateNextPreview();
+
+    Composite.add(
+      world,
+      fruit
+    );
+
+  }
+);
+
+// 합체 이펙트
+function createMergeEffect(
+  x,
+  y,
+  color
+){
+
+  for(let i=0;i<15;i++){
+
+    effects.push({
+
+      x:x,
+      y:y,
+
+      vx:
+        (Math.random()-0.5)*8,
+
+      vy:
+        (Math.random()-0.5)*8,
+
+      radius:
+        4 + Math.random()*5,
+
+      alpha:1,
+
+      color:color
+
+    });
+
+  }
+
+}
+
+// 이펙트 렌더
+(function renderEffects(){
+
+  const ctx = render.context;
+
+  for(
+    let i=effects.length-1;
+    i>=0;
+    i--
+  ){
+
+    const p = effects[i];
+
+    p.x += p.vx;
+    p.y += p.vy;
+
+    p.alpha -= 0.03;
+
+    ctx.beginPath();
+
+    ctx.globalAlpha =
+      p.alpha;
+
+    ctx.fillStyle =
+      p.color;
+
+    ctx.shadowBlur = 20;
+    ctx.shadowColor =
+      p.color;
+
+    ctx.arc(
+      p.x,
+      p.y,
+      p.radius,
+      0,
+      Math.PI*2
+    );
+
+    ctx.fill();
+
+    ctx.globalAlpha = 1;
+
+    if(p.alpha <= 0){
+
+      effects.splice(i,1);
+
+    }
+
+  }
+
+  requestAnimationFrame(
+    renderEffects
+  );
+
+})();
+
+// 합체 함수
+function mergeFruit(a,b){
+
+  if(a.merged || b.merged)
+    return;
+
+  if(a.level !== b.level)
+    return;
+
+  a.merged = true;
+  b.merged = true;
+
+  // 마지막 단계
+  if(
+    a.level ===
+    fruitLevels.length - 1
+  ){
+
+    Composite.remove(world,a);
+    Composite.remove(world,b);
+
+    addScore(1000);
+
+    return;
+
+  }
+
+  let newX =
+    (a.position.x + b.position.x)/2;
+
+  let newY =
+    (a.position.y + b.position.y)/2;
+
+  const newLevel =
+    a.level + 1;
+
+  const radius =
+    fruitLevels[newLevel].r;
+
+  newX = Math.max(
+    radius + 5,
+    Math.min(
+      width - radius - 5,
+      newX
+    )
+  );
+
+  newY = Math.max(
+    radius + 5,
+    Math.min(
+      height - radius - 5,
+      newY
+    )
+  );
+
+  // 합체 애니메이션
+  Body.setVelocity(
+    a,
+    {x:0,y:0}
+  );
+
+  Body.setVelocity(
+    b,
+    {x:0,y:0}
+  );
+
+  Body.scale(a,1.08,1.08);
+  Body.scale(b,1.08,1.08);
+
+  setTimeout(()=>{
+
+    Composite.remove(world,a);
+    Composite.remove(world,b);
+
+    const newFruit =
+      createFruit(
+        newX,
+        newY,
+        newLevel
+      );
+
+    newFruit.merged = true;
+
+    setTimeout(()=>{
+
+      newFruit.merged = false;
+
+    },10);
+
+    Composite.add(
+      world,
+      newFruit
+    );
+
+    // 공중부양 버그 수정
+    const bodies =
+      Composite.allBodies(world);
+
+    bodies.forEach(body=>{
+
+      if(
+        body.level !== undefined
+      ){
+
+        Sleeping.set(
+          body,
+          false
+        );
+
+      }
+
+    });
+
+    // 이펙트
+    createMergeEffect(
+      newX,
+      newY,
+      fruitLevels[newLevel].color
+    );
+
+    addScore(
+      fruitLevels[newLevel].score
+    );
+
+  },60);
+
+}
+
+// 근접 합체 검사
+setInterval(()=>{
+
+  const bodies =
+    Composite.allBodies(world);
+
+  for(let i=0;i<bodies.length;i++){
+
+    for(
+      let j=i+1;
+      j<bodies.length;
+      j++
+    ){
+
+      const a = bodies[i];
+      const b = bodies[j];
+
+      if(
+        a.level === undefined ||
+        b.level === undefined
+      ) continue;
+
+      const dx =
+        a.position.x - b.position.x;
+
+      const dy =
+        a.position.y - b.position.y;
+
+      const distance =
+        Math.sqrt(
+          dx*dx + dy*dy
+        );
+
+      const mergeDistance =
+
+        fruitLevels[a.level].r +
+        fruitLevels[b.level].r +
+        8;
+
+      if(
+        distance <= mergeDistance
+      ){
+
+        mergeFruit(a,b);
+
+      }
+
+    }
+
+  }
+
+},30);
+
+</script>
+
+</body>
+</html>
